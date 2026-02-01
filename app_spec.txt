@@ -1,0 +1,537 @@
+<project_specification>
+  <project_name>Property Call</project_name>
+
+  <overview>
+    An automated lead qualification system for real estate investors. The app imports leads from Kind Skiptracing (XLSX), pushes them to Follow-up Boss (CRM), then uses an AI voice agent (Deepgram Voice Agent + Telnyx telephony) to call and qualify leads. Call recordings, transcripts, and extracted qualification data are automatically posted back to Follow-up Boss. Includes a minimal admin UI for configuration, monitoring, and live call listening.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React</framework>
+      <styling>Tailwind CSS</styling>
+      <state_management>React Context / useState</state_management>
+    </frontend>
+    <backend>
+      <runtime>Node.js</runtime>
+      <framework>Express</framework>
+      <database>SQLite</database>
+    </backend>
+    <integrations>
+      <telephony>Telnyx Voice API, SignalWire Voice API</telephony>
+      <voice_ai>Deepgram Voice Agent API (STT, TTS, LLM orchestration)</voice_ai>
+      <crm>Follow-up Boss API</crm>
+    </integrations>
+    <communication>
+      <api>REST API</api>
+      <realtime>WebSocket (for audio streaming and live monitoring)</realtime>
+    </communication>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Node.js 18+ installed
+      - Mac Studio M2 Max with 32GB RAM (development machine)
+      - Telnyx account with API key and phone number
+      - Deepgram account with API key
+      - Follow-up Boss account with API key
+      - OpenAI API key (for LLM in Deepgram Voice Agent)
+    </environment_setup>
+  </prerequisites>
+
+  <feature_count>283</feature_count>
+
+  <security_and_access_control>
+    <user_roles>
+      <role name="user">
+        <permissions>
+          - Can upload and import XLSX files
+          - Can view and manage leads
+          - Can configure AI prompts and settings
+          - Can monitor calls and listen live
+          - Can view call history and recordings
+          - Can view dashboard and reports
+        </permissions>
+        <protected_routes>
+          - All routes require authentication
+          - /login is public
+        </protected_routes>
+      </role>
+    </user_roles>
+    <authentication>
+      <method>Email/password</method>
+      <session_timeout>24 hours</session_timeout>
+      <password_requirements>Minimum 8 characters</password_requirements>
+    </authentication>
+    <sensitive_operations>
+      - Account deletion requires password confirmation
+      - API key changes require password confirmation
+    </sensitive_operations>
+  </security_and_access_control>
+
+  <core_features>
+    <authentication>
+      - User registration (single user per account)
+      - User login with email/password
+      - User logout
+      - Password reset via email
+      - Session management
+      - Account settings (change password, email)
+      - API key management (Telnyx, Deepgram, FUB, OpenAI)
+    </authentication>
+
+    <xlsx_import>
+      - Upload XLSX file from Kind Skiptracing via UI
+      - Parse and validate XLSX data (100+ fields)
+      - Preview imported data before pushing to FUB
+      - Field mapping configuration (Kind fields to FUB fields)
+      - Check for duplicates against existing FUB contacts (by phone/address)
+      - Display duplicates found with details (name, phone, address, link to FUB record)
+      - Option to skip duplicates (default) or view existing
+      - Validation error display (missing fields, bad phone formats)
+      - Import only new (non-duplicate) leads to FUB
+      - Import history/logs showing past uploads with counts
+      - Support for multiple phone numbers per lead (Mobile 1-7, Landline 1-7, VOIP)
+    </xlsx_import>
+
+    <followup_boss_integration>
+      - API connection and authentication
+      - Create new leads/people in FUB
+      - Map Kind fields to FUB standard fields (name, phones, address, source)
+      - Create/use custom fields for property data (beds, baths, sqft, year built, equity, mortgage info, AI motivation score, vacant indicator)
+      - Create/use custom fields for call outcomes (qualification status, sentiment, disposition, callback time, answers, recording URL, transcript)
+      - Post call results to FUB after each call
+      - Health check endpoint monitoring
+      - Pause calling if FUB API is down
+      - Error handling and retry logic
+    </followup_boss_integration>
+
+    <telnyx_telephony>
+      - API connection with Telnyx credentials
+      - Initiate outbound calls
+      - Answering Machine Detection (AMD) configuration
+      - Detect human vs voicemail/machine
+      - Call recording (stored by Telnyx, URL retrieved)
+      - Webhook handlers for call events (initiated, answered, hangup, recording saved)
+      - Phone number management
+      - Call status tracking
+      - Error handling and connection recovery
+    </telnyx_telephony>
+
+    <signalwire_integration>
+      - Parallel telephony provider with SignalWire credentials (Space URL, Project ID, API token)
+      - CRUD support for SignalWire SIP endpoints and phone numbers
+      - Webhook handlers mirroring Telnyx events to keep call state in sync
+      - Credential storage in encrypted api_keys table via settings endpoints
+      - Health checks plus provider failover logic between Telnyx and SignalWire
+    </signalwire_integration>
+
+    <audio_bridge>
+      - WebSocket server to receive Telnyx audio stream
+      - Forward audio to Deepgram Voice Agent WebSocket
+      - Receive Deepgram audio responses
+      - Send audio back to Telnyx call
+      - Audio format conversion if needed (G.711 to Linear16)
+      - Connection management and error recovery
+      - Support for live monitoring tap-in
+    </audio_bridge>
+
+    <deepgram_voice_agent>
+      - WebSocket connection to Deepgram Agent API
+      - Configure STT (Nova-3 model)
+      - Configure TTS (Aura-2 voice selection)
+      - Configure LLM (OpenAI GPT-4o-mini)
+      - Set agent greeting message
+      - Set system prompt for conversation
+      - Handle conversation events (UserStartedSpeaking, AgentThinking, AgentStartedSpeaking, ConversationText, AgentAudioDone)
+      - Real-time transcript capture
+      - Keep-alive message handling
+      - Error handling and reconnection
+    </deepgram_voice_agent>
+
+    <ai_conversation_logic>
+      - System prompt for real estate lead qualification
+      - Introduction script: "Hi, I'm an assistant calling on behalf of [Company] for [Name] regarding [Address]"
+      - Qualifying questions: motivation to sell, timeline, property condition, price expectations
+      - Gentle objection handling (re-engage without being pushy)
+      - Recognize disqualifying answers (already sold, wrong number, not interested)
+      - End call gracefully on disqualification
+      - Callback scheduling: get availability for today/tomorrow
+      - Gentle goodbye script
+      - Voicemail script (leave message on AMD detection)
+      - Configurable prompts via UI
+      - Configurable qualifying questions via UI
+      - Configurable disqualifying triggers via UI
+    </ai_conversation_logic>
+
+    <data_extraction>
+      - Define function calls for structured data extraction
+      - Extract qualification status (Qualified / Not Qualified / Couldn't Reach)
+      - Extract seller sentiment (Very Motivated, Somewhat Motivated, Neutral, Reluctant, Not Interested)
+      - Extract call disposition (Callback Scheduled, Not Interested, Wrong Number, Already Sold, Voicemail Left, No Answer, Disqualified)
+      - Extract answers to each qualifying question
+      - Extract scheduled callback date/time
+      - Generate AI summary of conversation
+      - Handle function call responses from Deepgram
+      - Store extracted data locally before posting to FUB
+    </data_extraction>
+
+    <call_queue_and_retry>
+      - Call queue management
+      - Trigger calls from FUB (via webhook or polling for status change)
+      - One call at a time (architected for future scaling)
+      - Phone number rotation (try Mobile 1-7, then Landlines)
+      - Retry logic: 3 attempts over consecutive days
+      - Retry timing: morning, noon, afternoon on different days
+      - Time-of-day restrictions: only call 9am-7pm in lead's timezone
+      - Timezone detection from lead's address
+      - Pause/resume calling
+      - Skip lead on permanent failure (wrong number, do not call)
+    </call_queue_and_retry>
+
+    <live_call_monitoring>
+      - List of currently active calls
+      - Real-time call status display
+      - Listen-in to active call (WebSocket audio stream to browser)
+      - Audio player in browser for live monitoring
+      - See live transcript as conversation happens
+      - Indicate which agent is speaking (AI vs caller)
+    </live_call_monitoring>
+
+    <call_history_and_recordings>
+      - Call logs with filtering (by date, outcome, lead)
+      - Call detail view (lead info, outcome, duration, timestamp)
+      - Recording playback (from Telnyx URL)
+      - Transcript viewing (full conversation)
+      - Search calls by lead name, phone, address
+      - Export call logs (CSV)
+    </call_history_and_recordings>
+
+    <configuration_ui>
+      - AI prompts editor (system prompt, greeting, goodbye)
+      - Qualifying questions editor (add/edit/remove/reorder)
+      - Voicemail script editor
+      - Company name and callback info settings
+      - Disqualifying answer triggers (add/edit/remove)
+      - Retry logic settings (attempts, timing, intervals)
+      - Time-of-day restriction settings
+      - Field mapping configuration (Kind to FUB)
+      - Voice selection (Deepgram Aura-2 voices)
+      - API key configuration (Telnyx, Deepgram, FUB, OpenAI)
+    </configuration_ui>
+
+    <dashboard_and_reporting>
+      - Overview stats: total leads, calls made, qualified, callbacks scheduled
+      - Calls today: count, outcomes breakdown
+      - Outcome distribution chart (pie/bar)
+      - Qualified leads count and list
+      - Trends over time (calls per day, qualification rate)
+      - Recent activity feed
+      - Quick access to pending callbacks
+    </dashboard_and_reporting>
+
+    <notifications_and_alerts>
+      - Daily summary email (calls made, outcomes, qualified leads)
+      - Critical error alerts via email (FUB down, Telnyx error, Deepgram connection failed)
+      - Email configuration (recipient, enable/disable)
+      - In-app notification for errors
+    </notifications_and_alerts>
+
+    <error_handling_and_health>
+      - FUB API health check (pause calling if down)
+      - Telnyx API health check
+      - Deepgram connection health monitoring
+      - Mid-call failure handling (retry lead later)
+      - Graceful shutdown on critical errors
+      - Error logging with timestamps
+      - Retry queue for failed FUB posts
+      - Connection recovery and reconnection logic
+    </error_handling_and_health>
+  </core_features>
+
+  <database_schema>
+    <tables>
+      <users>
+        - id, email, password_hash, created_at, updated_at
+      </users>
+      <settings>
+        - id, user_id, key, value, created_at, updated_at
+      </settings>
+      <api_keys>
+        - id, user_id, service (telnyx/deepgram/fub/openai), api_key_encrypted, created_at, updated_at
+      </api_keys>
+      <import_history>
+        - id, user_id, filename, total_rows, imported_count, duplicate_count, error_count, created_at
+      </import_history>
+      <leads>
+        - id, user_id, fub_id, first_name, last_name, property_address, property_city, property_state, property_zip, phones (JSON), status, created_at, updated_at
+      </leads>
+      <call_queue>
+        - id, lead_id, status (pending/in_progress/completed/failed), attempt_number, scheduled_time, timezone, created_at, updated_at
+      </call_queue>
+      <calls>
+        - id, lead_id, telnyx_call_id, deepgram_session_id, status, disposition, qualification_status, sentiment, answers (JSON), callback_time, recording_url, transcript, ai_summary, duration_seconds, started_at, ended_at, created_at
+      </calls>
+      <prompts>
+        - id, user_id, type (system/greeting/goodbye/voicemail), content, created_at, updated_at
+      </prompts>
+      <qualifying_questions>
+        - id, user_id, question, order_index, created_at, updated_at
+      </qualifying_questions>
+      <disqualifying_triggers>
+        - id, user_id, trigger_phrase, action (end_call/mark_disqualified), created_at, updated_at
+      </disqualifying_triggers>
+      <field_mappings>
+        - id, user_id, kind_field, fub_field, is_custom_field, created_at, updated_at
+      </field_mappings>
+    </tables>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <auth>
+      - POST /api/auth/register
+      - POST /api/auth/login
+      - POST /api/auth/logout
+      - POST /api/auth/forgot-password
+      - POST /api/auth/reset-password
+      - GET /api/auth/me
+    </auth>
+    <settings>
+      - GET /api/settings
+      - PUT /api/settings
+      - GET /api/settings/api-keys
+      - PUT /api/settings/api-keys/:service
+    </settings>
+    <import>
+      - POST /api/import/upload
+      - GET /api/import/preview/:id
+      - POST /api/import/check-duplicates/:id
+      - POST /api/import/execute/:id
+      - GET /api/import/history
+    </import>
+    <leads>
+      - GET /api/leads
+      - GET /api/leads/:id
+      - DELETE /api/leads/:id
+    </leads>
+    <calls>
+      - GET /api/calls
+      - GET /api/calls/:id
+      - GET /api/calls/:id/recording
+      - GET /api/calls/:id/transcript
+      - GET /api/calls/active
+      - POST /api/calls/trigger (initiate call for lead)
+    </calls>
+    <call_queue>
+      - GET /api/queue
+      - POST /api/queue/pause
+      - POST /api/queue/resume
+      - DELETE /api/queue/:id
+    </call_queue>
+    <configuration>
+      - GET /api/config/prompts
+      - PUT /api/config/prompts/:type
+      - GET /api/config/questions
+      - POST /api/config/questions
+      - PUT /api/config/questions/:id
+      - DELETE /api/config/questions/:id
+      - PUT /api/config/questions/reorder
+      - GET /api/config/disqualifiers
+      - POST /api/config/disqualifiers
+      - PUT /api/config/disqualifiers/:id
+      - DELETE /api/config/disqualifiers/:id
+      - GET /api/config/field-mappings
+      - PUT /api/config/field-mappings
+      - GET /api/config/retry-settings
+      - PUT /api/config/retry-settings
+      - GET /api/config/time-restrictions
+      - PUT /api/config/time-restrictions
+    </configuration>
+    <dashboard>
+      - GET /api/dashboard/stats
+      - GET /api/dashboard/recent-activity
+      - GET /api/dashboard/trends
+    </dashboard>
+    <health>
+      - GET /api/health
+      - GET /api/health/fub
+      - GET /api/health/telnyx
+      - GET /api/health/deepgram
+    </health>
+    <webhooks>
+      - POST /api/webhooks/telnyx (call events)
+      - POST /api/webhooks/fub (optional: trigger calls on status change)
+    </webhooks>
+    <websocket>
+      - WS /ws/monitor (live call monitoring audio + events)
+    </websocket>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <main_structure>
+      Sidebar navigation with main content area. Responsive design with collapsible sidebar on mobile.
+    </main_structure>
+    <pages>
+      - Login / Register
+      - Dashboard (stats, recent activity, trends)
+      - Import (upload XLSX, preview, duplicate check, execute)
+      - Leads (list with search/filter)
+      - Call Queue (pending calls, pause/resume)
+      - Live Monitor (active calls, listen-in)
+      - Call History (logs, recordings, transcripts)
+      - Configuration (prompts, questions, disqualifiers, mappings, settings)
+      - Account Settings (profile, API keys)
+    </pages>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      - Primary: Blue (#3B82F6)
+      - Success: Green (#10B981)
+      - Warning: Yellow (#F59E0B)
+      - Error: Red (#EF4444)
+      - Neutral: Gray scale
+      - Background: White / Light gray
+    </color_palette>
+    <typography>
+      - Font: Inter or system font stack
+      - Clean, professional, readable
+    </typography>
+    <style>
+      - Clean and minimal
+      - Professional business aesthetic
+      - Light mode (default)
+    </style>
+  </design_system>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Project Setup & Authentication</title>
+      <tasks>
+        - Initialize Node.js backend with Express
+        - Initialize React frontend with Tailwind CSS
+        - Set up SQLite database with initial schema
+        - Implement user authentication (register, login, logout, sessions)
+        - Create basic UI layout (sidebar, routing)
+      </tasks>
+    </step>
+    <step number="2">
+      <title>XLSX Import & FUB Integration</title>
+      <tasks>
+        - Build XLSX upload and parsing
+        - Implement data preview UI
+        - Build Follow-up Boss API integration
+        - Implement duplicate checking against FUB
+        - Build import execution with field mapping
+        - Create import history view
+      </tasks>
+    </step>
+    <step number="3">
+      <title>Telnyx Integration</title>
+      <tasks>
+        - Set up Telnyx API connection
+        - Implement outbound call initiation
+        - Configure AMD (Answering Machine Detection)
+        - Set up webhook handlers for call events
+        - Implement call recording retrieval
+      </tasks>
+    </step>
+    <step number="4">
+      <title>Deepgram Voice Agent Integration</title>
+      <tasks>
+        - Set up Deepgram WebSocket connection
+        - Configure Voice Agent settings (STT, TTS, LLM)
+        - Build audio bridge between Telnyx and Deepgram
+        - Implement conversation event handling
+        - Set up function calling for data extraction
+      </tasks>
+    </step>
+    <step number="5">
+      <title>AI Conversation Logic</title>
+      <tasks>
+        - Design and implement system prompts
+        - Build qualifying question flow
+        - Implement objection handling logic
+        - Build disqualification detection
+        - Implement callback scheduling
+        - Create voicemail handling
+      </tasks>
+    </step>
+    <step number="6">
+      <title>Call Queue & Retry System</title>
+      <tasks>
+        - Build call queue management
+        - Implement phone number rotation
+        - Build retry logic (3 attempts, different times)
+        - Implement time-of-day restrictions with timezone support
+        - Create pause/resume functionality
+      </tasks>
+    </step>
+    <step number="7">
+      <title>Live Monitoring & Call History</title>
+      <tasks>
+        - Build WebSocket for live audio streaming
+        - Create live monitoring UI with audio player
+        - Implement real-time transcript display
+        - Build call history with filtering
+        - Create recording playback and transcript viewing
+      </tasks>
+    </step>
+    <step number="8">
+      <title>Configuration UI</title>
+      <tasks>
+        - Build prompts editor
+        - Create qualifying questions manager
+        - Build disqualifying triggers manager
+        - Implement field mapping configuration
+        - Create retry and time restriction settings
+      </tasks>
+    </step>
+    <step number="9">
+      <title>Dashboard & Notifications</title>
+      <tasks>
+        - Build dashboard with stats and charts
+        - Implement daily summary email
+        - Create critical error email alerts
+        - Add in-app notifications
+      </tasks>
+    </step>
+    <step number="10">
+      <title>Testing & Polish</title>
+      <tasks>
+        - End-to-end testing of full call flow
+        - Error handling and edge cases
+        - Performance optimization
+        - UI polish and responsive design
+        - Documentation
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - Can upload XLSX and import non-duplicate leads to FUB
+      - AI voice agent successfully calls leads and conducts qualifying conversations
+      - Call results (recording, transcript, extracted data) posted to FUB
+      - Live call monitoring works with real-time audio
+      - Retry logic respects time-of-day restrictions and attempt limits
+      - System pauses gracefully when FUB API is down
+    </functionality>
+    <user_experience>
+      - Clean, intuitive UI for configuration and monitoring
+      - Clear feedback on import status and duplicates
+      - Easy access to call recordings and transcripts
+      - Dashboard provides useful at-a-glance insights
+    </user_experience>
+    <technical_quality>
+      - Stable WebSocket connections for audio streaming
+      - Proper error handling throughout
+      - Data integrity between Property Call, FUB, and call providers
+      - Secure API key storage
+    </technical_quality>
+    <design_polish>
+      - Professional, clean aesthetic
+      - Responsive on desktop and tablet
+      - Consistent styling throughout
+    </design_polish>
+  </success_criteria>
+</project_specification>

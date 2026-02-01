@@ -1,0 +1,143 @@
+## SESSION: Single Feature Mode - Feature #240 (SUCCESS!)
+**Date**: 2026-01-23
+**Mode**: SINGLE FEATURE MODE - Assigned Feature #240 ONLY
+
+### Assignment:
+Working exclusively on Feature #240: "Provider-specific errors map to common error types"
+
+### Feature Requirements (from feature steps):
+1. Define TelephonyError base class
+2. Create specific error types (AuthenticationError, RateLimitError, CallFailedError, NetworkError)
+3. Implement Telnyx error mapper
+4. Implement SignalWire error mapper
+5. Verify all provider errors map to common types
+
+### Implementation:
+
+**Already Implemented:**
+The complete error handling system was already implemented in:
+- `backend/src/providers/telephony-errors.js` (630 lines)
+- Exports from `backend/src/providers/index.ts`
+
+**Created:**
+- `backend/test-feature-240.mjs` - Comprehensive test suite with 47 tests
+
+### Error Classes Implemented:
+
+**Base Class:**
+- TelephonyError - Base class with code, metadata, timestamp, originalError
+
+**Specific Error Types:**
+1. AuthenticationError - Invalid/missing/expired API credentials
+2. RateLimitError - API rate limits exceeded
+3. CallFailedError - Call operations failed
+4. NetworkError - Network connectivity issues
+5. ValidationError - Invalid request parameters
+6. ConfigurationError - Invalid/missing provider configuration
+7. ResourceNotFoundError - Requested resource not found
+8. PermissionDeniedError - API key lacks permission
+9. ServiceUnavailableError - Provider service down
+10. TimeoutError - Operation timed out
+
+### Error Mappers Implemented:
+
+**Telnyx Error Mapper (mapTelnyxError):**
+- Maps 30+ Telnyx error codes to unified error types
+- HTTP status codes: 401, 403, 404, 408, 400, 429, 500, 502, 503
+- Error codes: invalid_api_key, rate_limit_exceeded, call_failed, network_error, etc.
+- Includes metadata: provider, providerCode, callId, rate limit details
+
+**SignalWire Error Mapper (mapSignalWireError):**
+- Maps 15+ SignalWire error codes to unified error types
+- Twilio-compatible codes: 20003, 20005, 20404, 21614, 21612, 21211, 13223, etc.
+- HTTP status codes: 401, 403, 404, 408, 400, 429, 500, 502, 503
+- Includes metadata: provider, providerCode, callSid, accountSid
+
+**Generic Mapper (mapProviderError):**
+- Routes to appropriate provider-specific mapper
+- Handles unknown providers with generic TelephonyError
+- Handles null errors gracefully
+
+### Utility Functions:
+
+1. **isTelephonyError(error)** - Check if error is TelephonyError instance
+2. **isRetryableError(error)** - Check if error is retryable (rate limit, network, timeout, service unavailable)
+3. **getUserFriendlyMessage(error)** - Convert error to user-friendly message
+4. **toJSON()** - Serialize error for logging/transmission
+
+### Verification Results:
+
+| Step | Description | Tests | Result |
+|------|-------------|-------|--------|
+| 1 | TelephonyError base class defined | 5 tests | PASS |
+| 2 | Specific error types created | 5 tests | PASS |
+| 3 | Telnyx error mapper implemented | 12 tests | PASS |
+| 4 | SignalWire error mapper implemented | 13 tests | PASS |
+| 5 | All provider errors map to common types | 12 tests | PASS |
+
+**All 47 tests PASSED**
+
+### Test Coverage:
+
+**Step 1 - TelephonyError Base Class:**
+- Class definition
+- Required properties (message, code, name, timestamp, metadata)
+- Extends Error
+- toJSON() method for serialization
+- isCode() method for code checking
+
+**Step 2 - Specific Error Types:**
+- AuthenticationError with AUTHENTICATION_ERROR code
+- RateLimitError with RATE_LIMIT_ERROR code and metadata
+- CallFailedError with CALL_FAILED_ERROR code
+- NetworkError with NETWORK_ERROR code
+- Additional types: ValidationError, ConfigurationError, ResourceNotFoundError, PermissionDeniedError, ServiceUnavailableError, TimeoutError
+
+**Step 3 - Telnyx Error Mapper:**
+- HTTP status mappings: 401→Auth, 429→RateLimit, 403→Permission, 404→NotFound, 500→ServiceUnavailable, 408→Timeout
+- Error code mappings: call_failed→CallFailed, network_error→NetworkError, invalid_phone_number→ValidationError
+- Rate limit metadata (limit, remaining, resetAt)
+- Original error preservation
+- Unknown error handling
+
+**Step 4 - SignalWire Error Mapper:**
+- Error code mappings: 20003→Auth, 21614→Validation, call_failed→CallFailed
+- HTTP status mappings: same as Telnyx
+- call_sid → callId metadata mapping
+- account_sid preservation
+- Unknown error handling
+
+**Step 5 - Unified Error Mapping:**
+- mapProviderError routing to correct mapper
+- Unknown provider handling
+- Null error handling
+- isTelephonyError type checking
+- isRetryableError logic (4 retryable types)
+- getUserFriendlyMessage for all 10 error types
+- Context metadata inclusion
+- Error serialization with toJSON()
+
+### Feature #240: PASSED ✅
+
+All 5 verification steps confirmed through comprehensive unit tests.
+
+### Git Commit:
+- Commit hash: b605a41
+- Message: "Implement Feature #240: Provider-specific errors map to common error types"
+
+### Session Statistics:
+- Feature #240: PASSED
+- Total Passing: 237/283 (83.7%)
+- In Progress: 0
+
+### Notes:
+- The error handling system was already fully implemented in a previous session
+- This session created the comprehensive test suite to verify all functionality
+- The system provides:
+  - Consistent error handling across Telnyx and SignalWire providers
+  - Structured error metadata for debugging and logging
+  - User-friendly error messages
+  - Retry logic support
+  - Full error serialization for API responses
+- All error classes are properly exported from the providers module
+- The error system is ready for use by provider implementations

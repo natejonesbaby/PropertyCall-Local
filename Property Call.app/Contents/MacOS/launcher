@@ -1,0 +1,260 @@
+#!/bin/bash
+
+# Property Call Launcher
+# Starts frontend server (backend runs on Railway cloud)
+# Can also deploy backend updates to Railway
+
+APP_DIR="$(dirname "$(dirname "$(dirname "$(dirname "$0")")")")"
+FRONTEND_DIR="$APP_DIR/frontend"
+BACKEND_DIR="$APP_DIR/backend"
+LOG_DIR="$APP_DIR/.logs"
+
+# Railway backend URL
+RAILWAY_URL="https://propertycall-production.up.railway.app"
+
+# Create log directory if it doesn't exist
+mkdir -p "$LOG_DIR"
+
+# Version tracking file
+VERSION_FILE="$BACKEND_DIR/.deployed-version"
+REMOTE_VERSION_URL="$RAILWAY_URL/api/version"
+
+# =============================================================================
+# PATH SETUP - Must happen BEFORE any function that uses node/npm/railway
+# =============================================================================
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+
+# Include all nvm node versions so we can find globally installed tools like railway CLI
+if [ -d "$HOME/.nvm/versions/node" ]; then
+    for node_dir in "$HOME/.nvm/versions/node"/*/bin; do
+        export PATH="$node_dir:$PATH"
+    done
+fi
+
+# Load nvm if available and use Node 20 (required for better-sqlite3 compatibility)
+export NVM_DIR="$HOME/.nvm"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    \. "$NVM_DIR/nvm.sh"
+    if nvm ls 20 > /dev/null 2>&1; then
+        nvm use 20 > /dev/null 2>&1
+    else
+        nvm use default > /dev/null 2>&1
+    fi
+fi
+
+# Also check for fnm
+if command -v fnm &> /dev/null; then
+    eval "$(fnm env)"
+    fnm use 20 > /dev/null 2>&1 || true
+fi
+
+# =============================================================================
+# FUNCTION DEFINITIONS
+# =============================================================================
+
+# Get local backend version from package.json
+get_local_version() {
+    if [ -f "$BACKEND_DIR/package.json" ]; then
+        grep '"version"' "$BACKEND_DIR/package.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/'
+    else
+        echo "unknown"
+    fi
+}
+
+# Get deployed version from Railway
+get_deployed_version() {
+    # Try to get version from the deployed backend
+    DEPLOYED=$(curl -s --max-time 5 "$REMOTE_VERSION_URL" 2>/dev/null | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
+    if [ -n "$DEPLOYED" ]; then
+        echo "$DEPLOYED"
+    else
+        # Fallback to local tracking file
+        if [ -f "$VERSION_FILE" ]; then
+            cat "$VERSION_FILE"
+        else
+            echo "0.0.0"
+        fi
+    fi
+}
+
+# Function to deploy backend to Railway
+deploy_to_railway() {
+    echo "Deploying to Railway..." >> "$LOG_DIR/launcher.log"
+
+    # Check if railway CLI is installed
+    if ! command -v railway &> /dev/null; then
+        osascript -e 'display dialog "Railway CLI is not installed.\n\nInstall it with:\nnpm install -g @railway/cli\n\nThen run: railway login" buttons {"OK"} default button "OK" with icon stop with title "Property Call"'
+        return 1
+    fi
+
+    cd "$BACKEND_DIR"
+
+    # Show deploying notification
+    osascript -e 'display notification "Deploying backend to Railway..." with title "Property Call"'
+
+    # Deploy to Railway
+    railway up --detach > "$LOG_DIR/railway-deploy.log" 2>&1
+    DEPLOY_STATUS=$?
+
+    if [ $DEPLOY_STATUS -eq 0 ]; then
+        # Save deployed version
+        LOCAL_VERSION=$(get_local_version)
+        echo "$LOCAL_VERSION" > "$VERSION_FILE"
+
+        osascript -e 'display notification "Backend v'"$LOCAL_VERSION"' deployed successfully!" with title "Property Call"'
+        echo "Deploy successful: v$LOCAL_VERSION" >> "$LOG_DIR/launcher.log"
+        return 0
+    else
+        osascript -e 'display dialog "Deploy failed. Check logs at:\n'"$LOG_DIR/railway-deploy.log"'" buttons {"OK"} default button "OK" with icon stop with title "Property Call"'
+        echo "Deploy failed" >> "$LOG_DIR/launcher.log"
+        return 1
+    fi
+}
+
+# Check for --deploy flag (manual deploy)
+if [ "$1" = "--deploy" ]; then
+    deploy_to_railway
+    exit $?
+fi
+
+# Check if deploy is needed by comparing versions
+needs_deploy() {
+    LOCAL_VERSION=$(get_local_version)
+    DEPLOYED_VERSION=$(get_deployed_version)
+
+    echo "Local version: $LOCAL_VERSION, Deployed version: $DEPLOYED_VERSION" >> "$LOG_DIR/launcher.log"
+
+    if [ "$LOCAL_VERSION" != "$DEPLOYED_VERSION" ]; then
+        return 0  # Needs deploy
+    fi
+    return 1  # Up to date
+}
+
+# Check if node is available
+if ! command -v node &> /dev/null; then
+    osascript -e 'display dialog "Node.js is not installed. Please install Node.js to run Property Call." buttons {"OK"} default button "OK" with icon stop with title "Property Call"'
+    exit 1
+fi
+
+# Function to check if Railway backend is reachable
+check_railway() {
+    if curl -s --max-time 5 "$RAILWAY_URL/api/health" > /dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to stop any local backend server (we use Railway now)
+stop_local_backend() {
+    echo "Stopping any local backend processes..." >> "$LOG_DIR/launcher.log"
+
+    # Kill any process on port 3000 (local backend)
+    PIDS_3000=$(lsof -ti :3000 2>/dev/null)
+    if [ -n "$PIDS_3000" ]; then
+        echo "Killing local backend on port 3000: $PIDS_3000" >> "$LOG_DIR/launcher.log"
+        echo "$PIDS_3000" | xargs kill -9 2>/dev/null
+    fi
+
+    # Kill any node process running index.js from the backend directory
+    pkill -f "node.*backend.*index.js" 2>/dev/null
+    pkill -f "nodemon.*backend" 2>/dev/null
+}
+
+# Function to stop ngrok (we use Railway now, not ngrok)
+stop_ngrok() {
+    echo "Stopping any ngrok processes..." >> "$LOG_DIR/launcher.log"
+    pkill -f ngrok 2>/dev/null
+}
+
+# Function to stop existing frontend
+stop_frontend() {
+    PIDS_5173=$(lsof -ti :5173 2>/dev/null)
+    if [ -n "$PIDS_5173" ]; then
+        echo "Stopping existing frontend processes: $PIDS_5173" >> "$LOG_DIR/launcher.log"
+        echo "$PIDS_5173" | xargs kill -9 2>/dev/null
+        sleep 1
+    fi
+
+    if [ -f "$LOG_DIR/frontend.pid" ]; then
+        OLD_PID=$(cat "$LOG_DIR/frontend.pid")
+        if ps -p "$OLD_PID" > /dev/null 2>&1; then
+            kill -9 "$OLD_PID" 2>/dev/null
+        fi
+        rm -f "$LOG_DIR/frontend.pid"
+    fi
+}
+
+# Function to start frontend
+start_frontend() {
+    cd "$FRONTEND_DIR"
+
+    # Set environment variable to use Railway backend
+    export VITE_BACKEND_URL="$RAILWAY_URL"
+
+    npx vite --host > "$LOG_DIR/frontend.log" 2>&1 &
+    FRONTEND_PID=$!
+    echo $FRONTEND_PID > "$LOG_DIR/frontend.pid"
+
+    # Wait for frontend (max 30 seconds)
+    for i in {1..30}; do
+        if curl -s http://localhost:5173 > /dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
+}
+
+# Log startup
+echo "=== Property Call Launcher (Railway Mode) ===" > "$LOG_DIR/launcher.log"
+echo "Started at: $(date)" >> "$LOG_DIR/launcher.log"
+echo "Backend URL: $RAILWAY_URL" >> "$LOG_DIR/launcher.log"
+echo "Node version: $(node -v)" >> "$LOG_DIR/launcher.log"
+
+# Check if Railway backend is reachable
+echo "Checking Railway backend..." >> "$LOG_DIR/launcher.log"
+if check_railway; then
+    echo "Railway backend is reachable" >> "$LOG_DIR/launcher.log"
+else
+    echo "WARNING: Railway backend may be down" >> "$LOG_DIR/launcher.log"
+    osascript -e 'display dialog "Could not reach the cloud backend at:\n'"$RAILWAY_URL"'\n\nThe app will start but may not function properly.\n\nCheck your internet connection or Railway status." buttons {"Continue Anyway", "Cancel"} default button "Continue Anyway" with icon caution with title "Property Call"' 2>/dev/null
+    if [ $? -ne 0 ]; then
+        exit 1
+    fi
+fi
+
+# Auto-deploy if version has changed
+if needs_deploy; then
+    LOCAL_VERSION=$(get_local_version)
+    DEPLOYED_VERSION=$(get_deployed_version)
+    echo "Version mismatch detected - auto-deploying" >> "$LOG_DIR/launcher.log"
+    osascript -e 'display notification "Updating backend from v'"$DEPLOYED_VERSION"' to v'"$LOCAL_VERSION"'..." with title "Property Call"'
+    deploy_to_railway
+fi
+
+# =============================================================================
+# CLEANUP - Stop any lingering local processes (we use Railway for backend)
+# =============================================================================
+stop_local_backend
+stop_ngrok
+stop_frontend
+sleep 1
+
+echo "Starting frontend..." >> "$LOG_DIR/launcher.log"
+start_frontend
+
+# Verify frontend started
+if curl -s http://localhost:5173 > /dev/null 2>&1; then
+    echo "Frontend started successfully" >> "$LOG_DIR/launcher.log"
+else
+    echo "WARNING: Frontend may not have started properly" >> "$LOG_DIR/launcher.log"
+    osascript -e 'display dialog "Failed to start the Property Call frontend.\n\nCheck the logs at:\n'"$LOG_DIR/frontend.log"'" buttons {"OK"} default button "OK" with icon stop with title "Property Call"'
+    exit 1
+fi
+
+echo "Opening browser..." >> "$LOG_DIR/launcher.log"
+
+# Open the app in the default browser
+open "http://localhost:5173"
+
+echo "Launcher completed at: $(date)" >> "$LOG_DIR/launcher.log"

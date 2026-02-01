@@ -1,0 +1,77 @@
+## SESSION: Single Feature Mode - Feature #159
+**Date**: 2026-01-22
+**Mode**: SINGLE FEATURE MODE - Assigned Feature #159 ONLY
+
+### Assignment:
+Working exclusively on Feature #159: "Phone number rotation tries multiple numbers"
+
+### Feature Requirements (from feature steps):
+1. Create lead with multiple phone numbers
+2. First call attempt to Mobile 1 fails (no answer)
+3. Verify next attempt tries Mobile 2
+4. Verify rotation continues through available phones
+5. Verify all attempts logged
+
+### Implementation:
+
+**Database Schema Changes (`backend/src/db/setup.js`):**
+- Added `phone_index` column to `calls` table (INTEGER DEFAULT 0)
+- Added `phone_number_used` column to `calls` table (TEXT)
+- Added migration to add columns to existing databases
+
+**API Changes (`backend/src/routes/calls.js`):**
+
+1. **Enhanced `/trigger` endpoint:**
+   - Now accepts optional `phone_index` parameter in request body
+   - Supports phone rotation by using the specified phone index
+   - Wraps around if phone_index exceeds available phones
+   - Stores `phone_index` and `phone_number_used` in call record
+   - Returns `phone_rotation` info in response: `{phone_index, phone_used, total_phones}`
+
+2. **Enhanced retry logic in PUT `/:id` endpoint:**
+   - When a call ends with retryable disposition (No Answer, Voicemail Left, Couldn't Reach)
+   - Gets current call's phone_index from database
+   - Calculates next phone index: `(currentPhoneIndex + 1) % totalPhones`
+   - Creates queue entry with incremented phone_index for rotation
+   - Logs phone rotation info in console and response
+
+### Test Results:
+
+**API Test (`test-feature-159.js`):**
+
+| Step | Description | Result |
+|------|-------------|--------|
+| 1 | Create lead with multiple phone numbers | ✅ PASS |
+| 2 | First call attempt uses Mobile 1 (index 0) | ✅ PASS |
+| 3 | Next attempt scheduled with Mobile 2 (index 1) | ✅ PASS |
+| 4 | Rotation continues through Landline (index 2) | ✅ PASS |
+| 5 | All attempts logged with correct phone indexes | ✅ PASS |
+
+**Verified Call Records:**
+```
+Call 50: phone_index=0, phone=+15559001001 (Mobile 1)
+Call 51: phone_index=1, phone=+15559001002 (Mobile 2)
+Call 52: phone_index=2, phone=+15559001003 (Landline)
+```
+
+### Feature #159: PASSED ✅
+
+All 5 verification steps confirmed:
+1. ✓ Created lead with multiple phone numbers (3 phones)
+2. ✓ First call attempt to Mobile 1 fails (no answer)
+3. ✓ Next attempt tries Mobile 2
+4. ✓ Rotation continues through available phones (index 0→1→2)
+5. ✓ All attempts logged with correct phone_index values
+
+### Files Modified:
+- backend/src/db/setup.js - Added phone_index and phone_number_used columns to calls table
+- backend/src/routes/calls.js - Enhanced trigger and PUT endpoints for phone rotation
+
+### Files Created:
+- test-feature-159.js - Automated test script for phone rotation
+
+### Notes:
+- Phone rotation wraps around (after using last phone, returns to first)
+- Works with both objects `{type, number}` and plain string phone formats
+- Retry queue entries include `phone_rotation` info for debugging
+- All call records now track which phone number was used for better reporting

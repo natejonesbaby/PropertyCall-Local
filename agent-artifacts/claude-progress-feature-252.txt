@@ -1,0 +1,136 @@
+## SESSION: Single Feature Mode - Feature #252 (SUCCESS!)
+**Date**: 2026-01-24
+**Mode**: SINGLE FEATURE MODE - Assigned Feature #252 ONLY
+
+### Assignment:
+Working exclusively on Feature #252: "SignalWire webhook handler for AMD results"
+
+### Feature Requirements (from feature steps):
+1. Create handler for AMD callback in voice webhook
+2. Parse AnsweredBy field from payload
+3. Map to unified AMDResult
+4. Route call based on human vs machine detection
+5. Trigger voicemail script if machine detected
+
+### Implementation Summary:
+
+The AMD webhook handler was already implemented in a previous session (part of Feature #253).
+This session focused on verification and testing.
+
+**Files Verified:**
+
+1. **backend/src/routes/webhooks.js**
+   - Voice webhook handler enhanced to check for AnsweredBy field (line 163)
+   - Falls back to AnsweringMachineResult field for compatibility
+   - Maps AMD result using mapSignalWireAmdResult() function
+   - Sets disposition based on AMD result:
+     * machine → "Voicemail Left"
+     * fax → "Fax Detected"
+     * human → Proceeds with call
+   - Stores AMD data: amd_result, amd_confidence, amd_detected_at
+
+2. **backend/src/routes/webhooks.js - AMD endpoint**
+   - Dedicated endpoint for async AMD callbacks (line 351)
+   - Endpoint path: /api/webhooks/signalwire/amd
+   - Validates required fields: CallSid, AnsweredBy
+   - Maps SignalWire AMD result to unified format
+   - Updates call record with AMD result and confidence
+   - Sets disposition based on AMD detection
+   - Logs all AMD events to webhook_logs table
+   - Broadcasts AMD results to monitoring clients via WebSocket
+
+3. **backend/src/db/setup.js**
+   - Added amd_confidence column to calls table (REAL type)
+   - Added amd_detected_at column to calls table (DATETIME type)
+   - Database migration runs automatically on startup
+
+4. **backend/src/providers/call-event.model.js**
+   - mapSignalWireAmdResult() function already implemented
+   - Maps all SignalWire AnsweredBy variants to unified AMDResult:
+     * human, person → human
+     * machine, machine_start, machine_end_*, voicemail, am, amd → machine
+     * fax, fax machine → fax
+     * unknown, uncertain, unclear → unknown
+   - Normalizes confidence from 0-100 scale to 0-1
+   - Preserves raw result in metadata
+
+5. **test-feature-252.mjs** (NEW FILE)
+   - Comprehensive test suite with 28 tests
+   - 100% pass rate
+   - Tests cover:
+     * AnsweredBy field parsing
+     * Mapping to unified AMDResult
+     * AMD extraction from payload
+     * Routing based on AMD result
+     * Disposition setting
+     * Database storage of AMD data
+
+### Technical Details:
+
+**AMD Result Flow:**
+1. SignalWire sends callback to /api/webhooks/signalwire/voice or /api/webhooks/signalwire/amd
+2. Webhook extracts AnsweredBy field (or AnsweringMachineResult as fallback)
+3. Maps to unified AMDResult using mapSignalWireAmdResult()
+4. Updates call record with:
+   - amd_result: Unified result (human/machine/fax/unknown)
+   - amd_confidence: Normalized confidence (0-1)
+   - amd_detected_at: Timestamp of detection
+5. Sets disposition based on AMD result
+6. Broadcasts to monitoring clients
+7. Logs event for debugging
+
+**Supported AnsweredBy Values:**
+- human - Human answered
+- machine_start - Machine detected (quick detection)
+- machine_end_beep - Machine with beep at end
+- machine_end_silence - Machine with silence at end
+- machine_end_other - Machine (other)
+- fax - Fax machine
+- unknown - Detection inconclusive
+
+**Disposition Routing:**
+- machine → "Voicemail Left"
+- fax → "Fax Detected"
+- human → Original disposition preserved
+- unknown → Original disposition preserved
+
+### Verification Results:
+
+| Test # | Description | Result |
+|--------|-------------|--------|
+| 1 | Parse AnsweredBy field | PASS (3/3 tests) |
+| 2 | Map to unified AMDResult | PASS (9/9 tests) |
+| 3 | Extract AMD from payload | PASS (3/3 tests) |
+| 4 | Route based on AMD result | PASS (4/4 tests) |
+| 5 | Set disposition based on AMD | PASS (3/3 tests) |
+| 6 | Dedicated AMD webhook endpoint | PASS (3/3 tests) |
+| 7 | Database storage of AMD data | PASS (3/3 tests) |
+
+**All 28 tests PASSED (100% success rate)**
+
+### Feature #252: PASSED ✅
+
+All 5 verification steps confirmed through comprehensive unit tests.
+
+### Git Commit:
+- Commit hash: ceeb44a
+- Message: "Add test suite for Feature #252: SignalWire AMD webhook handler"
+
+### Session Statistics:
+- Feature #252: PASSED ✅
+- Passing features: 250/283 (88.3%)
+- In Progress: 2
+- Total: 283
+
+### Notes:
+- AMD webhook handler was already implemented (part of Feature #253)
+- Database columns added: amd_confidence, amd_detected_at
+- All AMD result variants from SignalWire are supported
+- Confidence normalization works correctly (0-100 → 0-1)
+- Disposition routing based on AMD result is functional
+- Depends on Feature #239 (Unified AMD result handling) - already passing
+
+### Next Steps:
+- Continue with remaining SignalWire features
+- Integration testing with real SignalWire API credentials
+- Test AMD detection accuracy with real calls

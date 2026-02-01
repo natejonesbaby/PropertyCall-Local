@@ -1,0 +1,316 @@
+{
+  "features": [
+    {
+      "category": "functional",
+      "name": "Telephony provider interface defines common methods",
+      "description": "Create a TypeScript interface that defines the contract all telephony providers must implement, including methods for initiateCall, endCall, getCallStatus, getRecording, and configureAMD",
+      "steps": ["Create telephony provider interface file in backend/src/providers/", "Define initiateCall method signature with common parameters", "Define endCall method signature", "Define getCallStatus method signature", "Define getRecording method signature", "Define configureAMD method signature", "Export interface for use by provider implementations"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider factory instantiates correct provider",
+      "description": "Create a factory function that reads the selected provider from settings and returns the appropriate provider instance (Telnyx or SignalWire)",
+      "steps": ["Create provider factory file", "Implement getProvider function that reads settings", "Return TelnyxProvider instance when telnyx is selected", "Return SignalWireProvider instance when signalwire is selected", "Throw error for unknown provider", "Verify factory returns correct provider type"]
+    },
+    {
+      "category": "functional",
+      "name": "Unified call event model normalizes events across providers",
+      "description": "Create a common CallEvent type that normalizes the different event formats from Telnyx and SignalWire into a single consistent structure",
+      "steps": ["Define CallEvent interface with common fields (callId, status, timestamp, direction)", "Define CallEventType enum (initiated, ringing, answered, completed, failed)", "Create mapper function for Telnyx events to CallEvent", "Create mapper function for SignalWire events to CallEvent", "Verify both mappers produce identical output structure"]
+    },
+    {
+      "category": "functional",
+      "name": "Unified call status model standardizes status values",
+      "description": "Create a common CallStatus enum and model that maps provider-specific statuses to unified status values",
+      "steps": ["Define CallStatus enum (queued, initiated, ringing, in_progress, completed, failed, busy, no_answer)", "Create Telnyx status mapping function", "Create SignalWire status mapping function", "Test that all provider statuses map to unified statuses", "Verify unmapped statuses throw appropriate errors"]
+    },
+    {
+      "category": "functional",
+      "name": "Unified recording URL handling abstracts storage differences",
+      "description": "Create a common interface for retrieving call recordings that abstracts the different URL formats and authentication methods between providers",
+      "steps": ["Define Recording interface with url, duration, format fields", "Implement getRecordingUrl method in provider interface", "Handle Telnyx recording URL format", "Handle SignalWire recording URL format", "Verify recordings can be fetched from both providers"]
+    },
+    {
+      "category": "functional",
+      "name": "Unified AMD result handling normalizes detection results",
+      "description": "Create a common AMDResult type that normalizes answering machine detection results from both providers into consistent values",
+      "steps": ["Define AMDResult enum (human, machine, fax, unknown)", "Create Telnyx AMD result mapper", "Create SignalWire AMD result mapper", "Include confidence score in unified result", "Test both providers return consistent AMD results"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider-specific errors map to common error types",
+      "description": "Create a common TelephonyError class hierarchy that maps provider-specific errors to unified error types for consistent error handling",
+      "steps": ["Define TelephonyError base class", "Create specific error types (AuthenticationError, RateLimitError, CallFailedError, NetworkError)", "Implement Telnyx error mapper", "Implement SignalWire error mapper", "Verify all provider errors map to common types"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider capability detection exposes feature flags",
+      "description": "Create a capabilities object for each provider that indicates which features are supported, allowing the app to adapt behavior based on provider capabilities",
+      "steps": ["Define ProviderCapabilities interface", "Include flags for AMD, recording, streaming, etc.", "Implement capabilities for Telnyx provider", "Implement capabilities for SignalWire provider", "Use capabilities to conditionally enable features in UI"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire API connection and authentication",
+      "description": "Implement SignalWire REST API client with proper authentication using Project ID, API Token, and Space URL",
+      "steps": ["Create SignalWireProvider class implementing telephony interface", "Configure authentication with Project ID and API Token", "Set base URL using Space URL", "Implement request helper with auth headers", "Test authentication with API call", "Handle authentication errors gracefully"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire initiates outbound calls via REST API",
+      "description": "Implement the initiateCall method for SignalWire that creates outbound calls using the Compatibility API",
+      "steps": ["Implement initiateCall method in SignalWireProvider", "Set From number from configured phone", "Set To number from lead data", "Configure webhook URLs for call events", "Enable recording if configured", "Return call SID on success", "Handle and map errors appropriately"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire phone number provisioning and listing",
+      "description": "Implement methods to list available phone numbers and provision new numbers from SignalWire",
+      "steps": ["Implement listPhoneNumbers method", "Implement searchAvailableNumbers method", "Implement provisionNumber method", "Implement releaseNumber method", "Return normalized phone number objects", "Handle provisioning errors"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire AMD configuration for human vs voicemail",
+      "description": "Configure SignalWire's Answering Machine Detection to distinguish between human answers and voicemail/machines",
+      "steps": ["Add MachineDetection parameter to call initiation", "Configure detection timeout", "Set speech threshold parameters", "Configure async AMD webhook URL", "Test AMD correctly identifies humans", "Test AMD correctly identifies machines"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire call recording enablement",
+      "description": "Enable call recording on SignalWire calls and configure recording settings",
+      "steps": ["Add Record parameter to call initiation", "Configure recording channels (dual/mono)", "Set recording status callback URL", "Configure recording trim silence option", "Verify recordings are created for calls"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire recording retrieval",
+      "description": "Implement method to retrieve call recordings from SignalWire after calls complete",
+      "steps": ["Implement getRecording method", "Fetch recording metadata by call SID", "Get recording URL with authentication", "Return recording in unified format", "Handle missing recordings gracefully"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire call status tracking",
+      "description": "Implement method to query current call status from SignalWire API",
+      "steps": ["Implement getCallStatus method", "Fetch call resource by SID", "Map SignalWire status to unified status", "Include duration and other metadata", "Handle call not found errors"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire error handling and retry logic",
+      "description": "Implement robust error handling for SignalWire API calls with appropriate retry logic for transient failures",
+      "steps": ["Catch and classify SignalWire API errors", "Implement retry for 5xx errors", "Implement retry for rate limit errors with backoff", "Map errors to common TelephonyError types", "Log errors with context for debugging"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire webhook handler for call events",
+      "description": "Create webhook endpoint to receive SignalWire call status callbacks and process call events",
+      "steps": ["Create POST /api/webhooks/signalwire/voice endpoint", "Parse SignalWire webhook payload", "Map to unified CallEvent format", "Emit event to call handler", "Return appropriate TwiML/response", "Log webhook events"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire webhook handler for recording ready",
+      "description": "Create webhook endpoint to receive SignalWire recording status callbacks when recordings are available",
+      "steps": ["Create POST /api/webhooks/signalwire/recording endpoint", "Parse recording completed payload", "Extract recording URL and call SID", "Update call record with recording URL", "Trigger post-call processing if needed"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire webhook handler for AMD results",
+      "description": "Create webhook endpoint to receive SignalWire answering machine detection results",
+      "steps": ["Create handler for AMD callback in voice webhook", "Parse AnsweredBy field from payload", "Map to unified AMDResult", "Route call based on human vs machine detection", "Trigger voicemail script if machine detected"]
+    },
+    {
+      "category": "security",
+      "name": "SignalWire webhook signature validation",
+      "description": "Validate SignalWire webhook signatures to ensure requests are authentic and prevent spoofing",
+      "steps": ["Extract X-SignalWire-Signature header", "Compute expected signature from payload", "Compare signatures securely", "Reject requests with invalid signatures", "Log validation failures for security monitoring"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire WebSocket media stream receiver",
+      "description": "Implement WebSocket server to receive real-time audio streams from SignalWire calls",
+      "steps": ["Create WebSocket endpoint for SignalWire streams", "Handle stream connection messages", "Receive media payloads with audio data", "Handle stream stop messages", "Manage multiple concurrent streams", "Clean up on disconnect"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire audio format conversion mulaw to Linear16",
+      "description": "Convert SignalWire's mulaw audio format to Linear16 PCM required by Deepgram Voice Agent",
+      "steps": ["Detect incoming audio format from stream metadata", "Implement mulaw to Linear16 decoder", "Handle sample rate conversion if needed", "Buffer audio appropriately for streaming", "Verify audio quality after conversion"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx provider refactored to implement interface",
+      "description": "Refactor existing Telnyx integration code to implement the common telephony provider interface",
+      "steps": ["Create TelnyxProvider class implementing interface", "Move existing call initiation code to initiateCall method", "Move existing recording code to getRecording method", "Implement all interface methods", "Ensure backward compatibility with existing calls"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx-specific logic extracted into provider module",
+      "description": "Extract all Telnyx-specific code from general call handling into the TelnyxProvider module",
+      "steps": ["Identify all Telnyx-specific code in codebase", "Move API calls to TelnyxProvider", "Move Telnyx-specific configuration handling", "Remove Telnyx imports from general modules", "Verify no Telnyx-specific code outside provider"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx webhooks standardized to common format",
+      "description": "Update Telnyx webhook handlers to emit unified CallEvent objects consistent with the abstraction layer",
+      "steps": ["Update webhook handler to use event mapper", "Convert Telnyx events to unified CallEvent", "Emit unified events to call handler", "Remove Telnyx-specific event handling from core", "Test event flow with unified events"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx audio bridge standardized to common interface",
+      "description": "Refactor Telnyx audio bridge code to implement the common audio bridge interface",
+      "steps": ["Create TelnyxAudioAdapter implementing audio interface", "Move Telnyx stream handling to adapter", "Standardize audio output format", "Implement common connection management", "Test audio flow through adapter"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx-specific errors mapped to common types",
+      "description": "Implement error mapping for Telnyx API errors to the common TelephonyError types",
+      "steps": ["Create Telnyx error mapper function", "Map authentication errors", "Map rate limit errors", "Map call failure errors", "Map network errors", "Test all error types are mapped correctly"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx capability flags defined",
+      "description": "Define the capabilities object for Telnyx provider indicating supported features",
+      "steps": ["Create capabilities object in TelnyxProvider", "Set AMD capability to true", "Set recording capability to true", "Set streaming capability to true", "Document any Telnyx-specific capabilities"]
+    },
+    {
+      "category": "functional",
+      "name": "Common audio bridge interface defined",
+      "description": "Create an interface that defines how audio bridges connect telephony providers to Deepgram",
+      "steps": ["Define AudioBridge interface", "Define connect method for provider stream", "Define method to pipe audio to Deepgram", "Define method to receive Deepgram audio", "Define disconnect and cleanup methods"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider-specific audio stream adapters implemented",
+      "description": "Create adapter classes that normalize audio streams from different providers to a common format",
+      "steps": ["Create AudioStreamAdapter interface", "Implement TelnyxAudioAdapter", "Implement SignalWireAudioAdapter", "Normalize audio format in adapters", "Handle provider-specific stream protocols"]
+    },
+    {
+      "category": "functional",
+      "name": "Unified audio format output to Deepgram",
+      "description": "Ensure all provider audio streams are converted to the format required by Deepgram Voice Agent",
+      "steps": ["Define Deepgram expected format (Linear16, sample rate)", "Implement format converter in audio bridge", "Apply conversion to all provider audio", "Verify Deepgram receives correct format", "Handle format errors gracefully"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider-agnostic live monitoring tap-in",
+      "description": "Implement live call monitoring that works regardless of which telephony provider is active",
+      "steps": ["Create monitoring interface in audio bridge", "Implement stream duplication for monitoring", "Route monitoring audio through common interface", "Test monitoring works with Telnyx", "Test monitoring works with SignalWire"]
+    },
+    {
+      "category": "functional",
+      "name": "Audio bridge connection management across providers",
+      "description": "Implement robust connection management for audio bridges that handles disconnects and reconnects",
+      "steps": ["Implement connection state tracking", "Handle provider disconnect events", "Handle Deepgram disconnect events", "Implement graceful cleanup on disconnect", "Log connection events for debugging"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider selection dropdown in settings",
+      "description": "Add a dropdown in the configuration UI that allows users to select their telephony provider",
+      "steps": ["Add provider selection to settings page", "Display Telnyx and SignalWire as options", "Show current selection on page load", "Save selection to settings on change", "Style dropdown consistently with design system"]
+    },
+    {
+      "category": "functional",
+      "name": "Dynamic credential fields based on selected provider",
+      "description": "Show different credential input fields based on which telephony provider is selected",
+      "steps": ["Conditionally render credential fields based on provider", "Show Telnyx fields when Telnyx selected", "Show SignalWire fields when SignalWire selected", "Clear non-relevant fields on provider switch", "Maintain entered values when switching back"]
+    },
+    {
+      "category": "functional",
+      "name": "SignalWire credentials input fields",
+      "description": "Add input fields for SignalWire credentials including Project ID, API Token, and Space URL",
+      "steps": ["Add Project ID input field", "Add API Token input field with password masking", "Add Space URL input field", "Add placeholder text with format hints", "Add validation for required fields"]
+    },
+    {
+      "category": "functional",
+      "name": "Telnyx credentials input preserved",
+      "description": "Ensure existing Telnyx API key input field continues to work within the new provider selection UI",
+      "steps": ["Keep Telnyx API Key field in conditional section", "Maintain existing validation", "Preserve saved Telnyx credentials", "Show field only when Telnyx selected", "Test saving and loading Telnyx credentials"]
+    },
+    {
+      "category": "functional",
+      "name": "Phone number display based on active provider",
+      "description": "Display phone numbers from the currently active provider in the configuration UI",
+      "steps": ["Fetch phone numbers from active provider API", "Display numbers in settings page", "Allow selection of default outbound number", "Update display when provider changes", "Handle loading state while fetching"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider connection test button",
+      "description": "Add a button to test the connection to the selected provider using entered credentials",
+      "steps": ["Add Test Connection button to settings", "Call provider health check endpoint on click", "Display success message if connection works", "Display error message with details if failed", "Disable button while testing"]
+    },
+    {
+      "category": "style",
+      "name": "Provider status indicator in settings",
+      "description": "Show a visual indicator of the current provider connection status in the settings UI",
+      "steps": ["Add status indicator next to provider dropdown", "Show green indicator when connected", "Show red indicator when disconnected", "Show yellow indicator when checking", "Update indicator on connection test"]
+    },
+    {
+      "category": "functional",
+      "name": "Help text updates per provider",
+      "description": "Display provider-specific help text and documentation links based on selected provider",
+      "steps": ["Create help text content for Telnyx", "Create help text content for SignalWire", "Show relevant help text based on selection", "Include links to provider documentation", "Add tooltips for credential fields"]
+    },
+    {
+      "category": "functional",
+      "name": "Credential validation per provider",
+      "description": "Implement provider-specific validation rules for credential inputs",
+      "steps": ["Validate Telnyx API key format", "Validate SignalWire Project ID format", "Validate SignalWire API Token format", "Validate Space URL format", "Show validation errors inline"]
+    },
+    {
+      "category": "functional",
+      "name": "Switch provider confirmation dialog",
+      "description": "Show a confirmation dialog when switching providers if there are active or queued calls",
+      "steps": ["Check for active calls on provider switch", "Check for queued calls on provider switch", "Show warning modal if calls exist", "Allow cancel to abort switch", "Pause queue before switching if confirmed"]
+    },
+    {
+      "category": "functional",
+      "name": "Provider-agnostic health check endpoint",
+      "description": "Create a unified health check endpoint that routes to the active provider's health check",
+      "steps": ["Create GET /api/health/telephony endpoint", "Detect active provider from settings", "Call appropriate provider health check", "Return unified health response format", "Include provider name in response"]
+    },
+    {
+      "category": "functional",
+      "name": "Health check routes to active provider",
+      "description": "Implement routing logic that directs health checks to the currently configured provider",
+      "steps": ["Get active provider from settings", "Instantiate provider via factory", "Call provider's healthCheck method", "Return provider-specific details", "Handle provider not configured case"]
+    },
+    {
+      "category": "style",
+      "name": "Provider-specific health indicators on dashboard",
+      "description": "Display health status indicators on the dashboard that show the active provider and its status",
+      "steps": ["Add provider health card to dashboard", "Show provider name and logo/icon", "Display connection status with color coding", "Show last check timestamp", "Add refresh button to recheck health"]
+    },
+    {
+      "category": "functional",
+      "name": "Pause calling if active provider is down",
+      "description": "Automatically pause the call queue when health checks detect the active provider is unavailable",
+      "steps": ["Check provider health before each call", "Pause queue if health check fails", "Log pause reason with provider details", "Resume automatically when provider recovers", "Send notification on auto-pause"]
+    },
+    {
+      "category": "style",
+      "name": "Provider status in system health display",
+      "description": "Include the active telephony provider status in the system health overview",
+      "steps": ["Add telephony section to health display", "Show active provider name", "Show provider connection status", "Show last successful call timestamp", "Show error count if any"]
+    },
+    {
+      "category": "data",
+      "name": "Store selected provider preference",
+      "description": "Save the user's selected telephony provider preference in the database settings",
+      "steps": ["Add telephony_provider setting key", "Default to telnyx for existing users", "Update setting on provider change", "Load setting on app initialization", "Validate provider value on load"]
+    },
+    {
+      "category": "data",
+      "name": "Store credentials for multiple providers",
+      "description": "Update the database schema to store API credentials for both Telnyx and SignalWire simultaneously",
+      "steps": ["Ensure api_keys table supports multiple telephony entries", "Store Telnyx credentials with service='telnyx'", "Store SignalWire credentials with service='signalwire'", "Encrypt all credentials at rest", "Load only active provider credentials when needed"]
+    },
+    {
+      "category": "data",
+      "name": "Provider-specific settings storage",
+      "description": "Store provider-specific configuration settings like phone numbers and AMD settings separately for each provider",
+      "steps": ["Create settings keys with provider prefix", "Store Telnyx-specific settings", "Store SignalWire-specific settings", "Load settings based on active provider", "Preserve settings when switching providers"]
+    },
+    {
+      "category": "data",
+      "name": "Settings migration for multi-provider support",
+      "description": "Create database migration to support multi-provider architecture for existing installations",
+      "steps": ["Create migration file", "Add telephony_provider setting with default 'telnyx'", "Rename existing telnyx settings with prefix if needed", "Add signalwire service to api_keys enum", "Test migration on existing database"]
+    }
+  ]
+}

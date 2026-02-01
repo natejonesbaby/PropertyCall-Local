@@ -1,0 +1,15 @@
+[GET] http://localhost:3000/api/settings/api-keys
+[GET] http://localhost:3000/api/settings/telnyx-phone
+[GET] http://localhost:3000/api/settings/telephony-provider
+[GET] http://localhost:3000/api/settings/signalwire-credentials
+[GET] http://localhost:3000/api/settings/phone-numbers
+[GET] http://localhost:3000/api/settings/api-keys => [200] OK
+[GET] http://localhost:3000/api/settings/telnyx-phone => [200] OK
+[GET] http://localhost:3000/api/settings/telephony-provider => [200] OK
+[GET] http://localhost:3000/api/settings/signalwire-credentials => [200] OK
+[GET] http://localhost:3000/api/settings/phone-numbers => [200] OK
+[GET] http://localhost:5173/vite.svg => [200] OK
+[GET] http://localhost:3000/api/settings/health => [200] OK
+[GET] http://localhost:3000/api/settings/health => [200] OK
+[GET] http://localhost:3000/api/calls/active => [200] OK
+[GET] http://localhost:3000/api/queue?status=pending&limit=1 => [200] OK
