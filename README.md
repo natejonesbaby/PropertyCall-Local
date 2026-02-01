@@ -1,6 +1,6 @@
-# Property Call
+# Property Call (Local AI Stack)
 
-An automated lead qualification system for real estate investors. Import leads from Kind Skiptracing (XLSX), push them to Follow-up Boss (CRM), then use an AI voice agent to call and qualify leads automatically.
+An automated lead qualification system for real estate investors with **fully local AI infrastructure**.
 
 ## Overview
 
@@ -8,63 +8,87 @@ Property Call automates the lead qualification process by:
 
 1. **Importing Leads**: Upload XLSX files from Kind Skiptracing
 2. **CRM Integration**: Push leads to Follow-up Boss with full field mapping
-3. **AI Voice Calls**: Deepgram Voice Agent conducts qualifying conversations
+3. **AI Voice Calls**: Conducts qualifying conversations with local STT, LLM, and TTS
 4. **Data Extraction**: Automatically capture qualification status, sentiment, and callback scheduling
 5. **Results Sync**: Post call recordings, transcripts, and extracted data back to Follow-up Boss
+
+## Local AI Stack
+
+| Component | Technology | Why |
+|-----------|-----------|------|
+| **STT** | Whisper (MLX) | Fast speech-to-text on Apple Silicon |
+| **LLM** | Ollama (phi4-mini:3.8b) | Local LLM with function calling |
+| **TTS** | Voicebox (Qwen3-TTS) | Voice cloning via REST API |
+| **Telephony** | SignalWire | Real-time audio streaming |
 
 ## Tech Stack
 
 - **Frontend**: React with Tailwind CSS
 - **Backend**: Node.js with Express
 - **Database**: SQLite
-- **Telephony**: Telnyx Voice API
-- **Voice AI**: Deepgram Voice Agent API (STT, TTS, LLM orchestration)
-- **CRM**: Follow-up Boss API
+- **Telephony**: SignalWire Voice API
+- **Voice AI**:
+  - STT: Whisper (via MLX on Apple Silicon)
+  - LLM: Ollama (phi4-mini:3.8b)
+  - TTS: Voicebox (http://localhost:8000)
 - **Real-time**: WebSocket for audio streaming and live monitoring
 
 ## Prerequisites
 
-- Node.js 18+
-- Telnyx account with API key and phone number
-- Deepgram account with API key
+### Local Services
+- **Ollama** running locally (http://localhost:11434)
+- **Voicebox** running locally (http://localhost:8000)
+- **Whisper** installed locally (via MLX)
+
+### External Services
+- SignalWire account with API key and phone number
 - Follow-up Boss account with API key
-- OpenAI API key (for LLM in Deepgram Voice Agent)
 
 ## Quick Start
 
-1. **Clone and Setup**
-   ```bash
-   ./init.sh
-   ```
+### 1. Start Local Services
 
-2. **Configure API Keys**
+```bash
+# Start Ollama
+ollama serve
 
-   Edit `backend/.env` with your API credentials:
-   ```
-   TELNYX_API_KEY=your_telnyx_key
-   TELNYX_PHONE_NUMBER=+1234567890
-   DEEPGRAM_API_KEY=your_deepgram_key
-   FUB_API_KEY=your_followup_boss_key
-   OPENAI_API_KEY=your_openai_key
-   ```
+# Start Voicebox
+open /Applications/Voicebox.app
 
-3. **Start Development Servers**
-   ```bash
-   # Backend
-   npm run dev --prefix backend
+# Verify services
+curl http://localhost:11434/api/generate -d '{"model":"phi4-mini:3.8b","prompt":"test","stream":false}'
+curl http://localhost:8000/profiles
+```
 
-   # Frontend (in another terminal)
-   npm run dev --prefix frontend
-   ```
+### 2. Clone and Setup
 
-4. **Access the Application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3000
+```bash
+git clone https://github.com/natejonesbaby/PropertyCall-Local.git
+cd PropertyCall-Local
+
+# Backend setup
+cd backend
+npm install
+cp .env.example .env
+# Edit .env with your API keys
+npm run dev
+
+# Frontend setup (in another terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+### 3. Access the Application
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3000
+- Ollama: http://localhost:11434
+- Voicebox: http://localhost:8000
 
 ## Project Structure
 
 ```
-property-call/
+property-call-local/
 ├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/    # Reusable UI components
@@ -80,18 +104,19 @@ property-call/
 │   │   ├── routes/        # API route handlers
 │   │   ├── services/      # Business logic
 │   │   ├── integrations/  # External API integrations
-│   │   │   ├── telnyx/    # Telnyx telephony
-│   │   │   ├── deepgram/  # Deepgram voice agent
-│   │   │   └── fub/       # Follow-up Boss CRM
-│   │   ├── db/            # Database setup and models
-│   │   ├── middleware/    # Express middleware
-│   │   ├── websocket/     # WebSocket handlers
-│   │   └── utils/         # Utility functions
+│   │   │   ├── signalwire/ # SignalWire telephony
+│   │   ├── ollama/     # Ollama LLM
+│   │   ├── whisper/     # Whisper STT
+│   │   └── voicebox/   # Voicebox TTS
+│   ├── db/            # Database setup and models
+│   ├── middleware/    # Express middleware
+│   ├── websocket/     # WebSocket handlers
+│   └── utils/         # Utility functions
 │   └── package.json
 │
-├── init.sh                 # Environment setup script
-├── README.md               # This file
-└── features.db             # Feature tracking database
+├── railway.toml           # Railway deployment config
+├── README.md              # This file
+└── .gitignore
 ```
 
 ## Features
@@ -102,12 +127,13 @@ property-call/
 - Duplicate detection against FUB contacts
 - Field mapping configuration
 
-### AI Voice Agent
+### AI Voice Agent (Local)
 - Configurable system prompts and greetings
 - Qualifying question sequences
 - Disqualifying trigger detection
 - Callback scheduling
 - Voicemail script handling
+- **100% local** — no API costs for AI processing
 
 ### Call Management
 - Call queue with retry logic
@@ -136,47 +162,95 @@ property-call/
 
 See `app_spec.txt` for complete API documentation.
 
-## Configuration
+## Local AI Integration
 
-### AI Prompts
-Configure through the Configuration page:
-- System prompt for conversation behavior
-- Greeting message (with dynamic fields)
-- Goodbye script
-- Voicemail script
+### Whisper (STT)
+```bash
+# Transcribe audio
+curl -X POST http://localhost:8001/transcribe \
+  -F "audio=@caller_audio.wav" \
+  -F "model=base"
+```
 
-### Qualifying Questions
-Add/edit/remove/reorder questions that the AI asks leads.
+### Ollama (LLM)
+```bash
+# Generate response
+curl http://localhost:11434/api/generate \
+  -d '{
+    "model": "phi4-mini:3.8b",
+    "prompt": "User said: hello",
+    "stream": false
+  }'
+```
 
-### Disqualifying Triggers
-Set phrases that end calls gracefully (e.g., "not interested", "already sold").
-
-### Retry Settings
-- Number of attempts (default: 3)
-- Retry intervals
-- Time-of-day restrictions (default: 9am-7pm in lead's timezone)
+### Voicebox (TTS)
+```bash
+# Generate speech
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello world",
+    "profile_id": "abc123"
+  }'
+```
 
 ## Development
 
-### Running Tests
 ```bash
+# Backend tests
 npm test --prefix backend
-npm test --prefix frontend
-```
 
-### Building for Production
-```bash
+# Frontend tests
+npm test --prefix frontend
+
+# Build for production
 npm run build --prefix frontend
 npm run build --prefix backend
 ```
 
-## Security
+## Deployment
 
-- All API keys encrypted at rest
-- Session-based authentication with 24-hour expiration
-- Password confirmation required for sensitive operations
-- User data isolation enforced at API level
+### Railway
+
+The project is configured for Railway deployment via `railway.toml`.
+
+**Services:**
+- `property-call-backend` — Node.js Express API
+- `property-call-frontend` — React Vite frontend
+
+**Deploy:**
+```bash
+railway up
+```
+
+**Environment Variables Required:**
+- `SIGNALWIRE_API_KEY` — SignalWire API key
+- `SIGNALWIRE_PHONE_NUMBER` — Your SignalWire phone number
+- `FUB_API_KEY` — Follow-up Boss API key
+- `OLLAMA_BASE_URL` — Ollama endpoint (default: http://localhost:11434)
+- `VOICEBOX_BASE_URL` — Voicebox endpoint (default: http://localhost:8000)
+
+## Migration from Deepgram
+
+This fork replaces Deepgram with a fully local stack:
+
+| Component | Old | New |
+|-----------|------|------|
+| STT | Deepgram Nova-2 | Whisper (MLX) |
+| LLM | OpenAI GPT-4o-mini | Ollama (phi4-mini:3.8b) |
+| TTS | Deepgram Aura-2 | Voicebox (Qwen3-TTS) |
+
+**Benefits:**
+- Zero API costs for AI processing
+- Full data privacy — nothing leaves your machine
+- No rate limits
+- Custom voice cloning via Voicebox
+- Faster inference on Apple Silicon
 
 ## License
 
 Proprietary - All rights reserved
+
+## Support
+
+For issues or questions, please open an issue on GitHub.
